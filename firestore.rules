@@ -1,0 +1,470 @@
+rules_version = '2';
+service cloud.firestore {
+
+  match /databases/{database}/documents {
+
+    function isIISERite () {
+      return request.auth != null &&
+        request.auth.token.email_verified &&
+        request.auth.token.email.matches('.*@iisermohali[.]ac[.]in');
+    }
+
+    function isValidPoll () {
+      return request.resource.data.type == 0 &&  //This will be changed later if we have more types of polls
+        request.resource.data.topic.trim() != "" &&
+        request.resource.data.createdBy == request.auth.token.email &&
+        request.resource.data.active == true &&
+        request.resource.data.isAnonymous != false &&   //This will be changed when support for anonymous polls is included.
+        request.resource.data.questions != [] && 
+        existsAfter(/databases/$(database)/documents/Polls/Redundant/$(request.resource.data.topic)/PeopleWhoHaveAlreadyVoted) &&
+        existsAfter(/databases/$(database)/documents/Polls/Redundant/$(request.resource.data.topic)/PollResults);
+    }
+
+    function isValidQuestionResultInitially (map) {
+      return map.values().hasOnly([0, []]);
+    }
+
+    function isValidPollResultsDoc (pollTopic) {
+      let newDoc = getAfter(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PollResults).data;
+      let isAnonymous = getAfter(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PollContent).data.isAnonymous;
+      let size = newDoc.values().size();
+      return 
+        ( isAnonymous &&
+          (
+            ( size == 1 &&
+              isValidQuestionResultInitially(newDoc.values()[0])
+            ) ||
+            ( size == 2 &&
+              isValidQuestionResultInitially(newDoc.values()[0]) &&
+              isValidQuestionResultInitially(newDoc.values()[1])
+            ) ||
+            ( size == 3 &&
+              isValidQuestionResultInitially(newDoc.values()[0]) &&
+              isValidQuestionResultInitially(newDoc.values()[1]) &&
+              isValidQuestionResultInitially(newDoc.values()[2])
+            ) ||
+            ( size == 4 &&
+              isValidQuestionResultInitially(newDoc.values()[0]) &&
+              isValidQuestionResultInitially(newDoc.values()[1]) &&
+              isValidQuestionResultInitially(newDoc.values()[2]) &&
+              isValidQuestionResultInitially(newDoc.values()[3])
+            ) ||
+            ( size == 5 &&
+              isValidQuestionResultInitially(newDoc.values()[0]) &&
+              isValidQuestionResultInitially(newDoc.values()[1]) &&
+              isValidQuestionResultInitially(newDoc.values()[2]) &&
+              isValidQuestionResultInitially(newDoc.values()[3]) &&
+              isValidQuestionResultInitially(newDoc.values()[4])
+            ) 
+          )
+        ) ||     //A mild vulnerability in this statement. It's possible for someone to send [] in a number field. Further, having more than 5 questions is not safe.
+        (false);   //Add a part for non-anonymous polls
+    }
+
+    function isValidAlreadyVotedDoc (pollTopic) {
+      let newDoc = getAfter(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PeopleWhoHaveAlreadyVoted).data;
+      return newDoc.keys().hasOnly(["AlreadyVoted"]) &&
+        newDoc.keys().hasAll(["AlreadyVoted"]) &&
+        newDoc["AlreadyVoted"] == [];
+    }
+
+    function pollContentCreated (pollTopic) {
+      return existsAfter(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PollContent);
+    }
+
+    function isValidSCQUpdation(questionResponseNewMap, questionResponseOldMap, keys) {
+    	let size = keys.size();
+      return 
+        (
+          (
+            size == 1 &&
+            (
+              questionResponseNewMap[keys[0]] - 1 == questionResponseOldMap[keys[0]]
+            )
+          ) ||
+          (
+            size == 2 &&
+            (
+              questionResponseNewMap[keys[0]] - 1 == questionResponseOldMap[keys[0]] ||
+              questionResponseNewMap[keys[1]] - 1 == questionResponseOldMap[keys[1]]
+            )
+          ) ||
+          (
+            size == 3 &&
+            (
+              questionResponseNewMap[keys[0]] - 1 == questionResponseOldMap[keys[0]] ||
+              questionResponseNewMap[keys[1]] - 1 == questionResponseOldMap[keys[1]] ||
+              questionResponseNewMap[keys[2]] - 1 == questionResponseOldMap[keys[2]]
+            )
+          ) ||
+          (
+            size == 4 &&
+            (
+              questionResponseNewMap[keys[0]] - 1 == questionResponseOldMap[keys[0]] ||
+              questionResponseNewMap[keys[1]] - 1 == questionResponseOldMap[keys[1]] ||
+              questionResponseNewMap[keys[2]] - 1 == questionResponseOldMap[keys[2]] ||
+              questionResponseNewMap[keys[3]] - 1 == questionResponseOldMap[keys[3]]
+            )
+          ) ||
+          (
+            size == 5 &&
+            (
+              questionResponseNewMap[keys[0]] - 1 == questionResponseOldMap[keys[0]] ||
+              questionResponseNewMap[keys[1]] - 1 == questionResponseOldMap[keys[1]] ||
+              questionResponseNewMap[keys[2]] - 1 == questionResponseOldMap[keys[2]] ||
+              questionResponseNewMap[keys[3]] - 1 == questionResponseOldMap[keys[3]] ||
+              questionResponseNewMap[keys[4]] - 1 == questionResponseOldMap[keys[4]]
+            )
+          ) ||
+          (
+            size == 6 &&
+            (
+              questionResponseNewMap[keys[0]] - 1 == questionResponseOldMap[keys[0]] ||
+              questionResponseNewMap[keys[1]] - 1 == questionResponseOldMap[keys[1]] ||
+              questionResponseNewMap[keys[2]] - 1 == questionResponseOldMap[keys[2]] ||
+              questionResponseNewMap[keys[3]] - 1 == questionResponseOldMap[keys[3]] ||
+              questionResponseNewMap[keys[4]] - 1 == questionResponseOldMap[keys[4]] ||
+              questionResponseNewMap[keys[5]] - 1 == questionResponseOldMap[keys[5]]
+            )
+          ) ||
+          (
+            size == 7 &&
+            (
+              questionResponseNewMap[keys[0]] - 1 == questionResponseOldMap[keys[0]] ||
+              questionResponseNewMap[keys[1]] - 1 == questionResponseOldMap[keys[1]] ||
+              questionResponseNewMap[keys[2]] - 1 == questionResponseOldMap[keys[2]] ||
+              questionResponseNewMap[keys[3]] - 1 == questionResponseOldMap[keys[3]] ||
+              questionResponseNewMap[keys[4]] - 1 == questionResponseOldMap[keys[4]] ||
+              questionResponseNewMap[keys[5]] - 1 == questionResponseOldMap[keys[5]] ||
+              questionResponseNewMap[keys[6]] - 1 == questionResponseOldMap[keys[6]]
+            )
+          ) ||
+          (
+            size == 8 &&
+            (
+              questionResponseNewMap[keys[0]] - 1 == questionResponseOldMap[keys[0]] ||
+              questionResponseNewMap[keys[1]] - 1 == questionResponseOldMap[keys[1]] ||
+              questionResponseNewMap[keys[2]] - 1 == questionResponseOldMap[keys[2]] ||
+              questionResponseNewMap[keys[3]] - 1 == questionResponseOldMap[keys[3]] ||
+              questionResponseNewMap[keys[4]] - 1 == questionResponseOldMap[keys[4]] ||
+              questionResponseNewMap[keys[5]] - 1 == questionResponseOldMap[keys[5]] ||
+              questionResponseNewMap[keys[6]] - 1 == questionResponseOldMap[keys[6]] ||
+              questionResponseNewMap[keys[7]] - 1 == questionResponseOldMap[keys[7]]
+            )
+          ) ||
+          (
+            size == 9 &&
+            (
+              questionResponseNewMap[keys[0]] - 1 == questionResponseOldMap[keys[0]] ||
+              questionResponseNewMap[keys[1]] - 1 == questionResponseOldMap[keys[1]] ||
+              questionResponseNewMap[keys[2]] - 1 == questionResponseOldMap[keys[2]] ||
+              questionResponseNewMap[keys[3]] - 1 == questionResponseOldMap[keys[3]] ||
+              questionResponseNewMap[keys[4]] - 1 == questionResponseOldMap[keys[4]] ||
+              questionResponseNewMap[keys[5]] - 1 == questionResponseOldMap[keys[5]] ||
+              questionResponseNewMap[keys[6]] - 1 == questionResponseOldMap[keys[6]] ||
+              questionResponseNewMap[keys[7]] - 1 == questionResponseOldMap[keys[7]] ||
+              questionResponseNewMap[keys[8]] - 1 == questionResponseOldMap[keys[8]]
+            )
+          ) ||
+          (
+            size == 10 &&
+            (
+              questionResponseNewMap[keys[0]] - 1 == questionResponseOldMap[keys[0]] ||
+              questionResponseNewMap[keys[1]] - 1 == questionResponseOldMap[keys[1]] ||
+              questionResponseNewMap[keys[2]] - 1 == questionResponseOldMap[keys[2]] ||
+              questionResponseNewMap[keys[3]] - 1 == questionResponseOldMap[keys[3]] ||
+              questionResponseNewMap[keys[4]] - 1 == questionResponseOldMap[keys[4]] ||
+              questionResponseNewMap[keys[5]] - 1 == questionResponseOldMap[keys[5]] ||
+              questionResponseNewMap[keys[6]] - 1 == questionResponseOldMap[keys[6]] ||
+              questionResponseNewMap[keys[7]] - 1 == questionResponseOldMap[keys[7]] ||
+              questionResponseNewMap[keys[8]] - 1 == questionResponseOldMap[keys[8]] ||
+              questionResponseNewMap[keys[9]] - 1 == questionResponseOldMap[keys[9]]
+            )
+          )
+        )
+    }
+
+    function isValidMCQUpdation(questionResponseNewMap, questionResponseOldMap, keys) {
+    	let size = keys.size();
+      return 
+        (
+          (
+            size == 1 &&
+            (
+              [questionResponseNewMap[keys[0]] - questionResponseOldMap[keys[0]]].hasOnly([0,1])
+            )
+          ) ||
+          (
+            size == 2 &&
+            (
+              [questionResponseNewMap[keys[0]] - questionResponseOldMap[keys[0]],
+               questionResponseNewMap[keys[1]] - questionResponseOldMap[keys[1]]].hasOnly([0,1])
+            )
+          ) ||
+          (
+            size == 3 &&
+            (
+              [questionResponseNewMap[keys[0]] - questionResponseOldMap[keys[0]],
+               questionResponseNewMap[keys[1]] - questionResponseOldMap[keys[1]],
+               questionResponseNewMap[keys[2]] - questionResponseOldMap[keys[2]]].hasOnly([0,1])
+            )
+          ) ||
+          (
+            size == 4 &&
+            (
+              [questionResponseNewMap[keys[0]] - questionResponseOldMap[keys[0]],
+               questionResponseNewMap[keys[1]] - questionResponseOldMap[keys[1]],
+               questionResponseNewMap[keys[2]] - questionResponseOldMap[keys[2]],
+               questionResponseNewMap[keys[3]] - questionResponseOldMap[keys[3]]].hasOnly([0,1])
+            )
+          ) ||
+          (
+            size == 5 &&
+            (
+              [questionResponseNewMap[keys[0]] - questionResponseOldMap[keys[0]],
+               questionResponseNewMap[keys[1]] - questionResponseOldMap[keys[1]],
+               questionResponseNewMap[keys[2]] - questionResponseOldMap[keys[2]],
+               questionResponseNewMap[keys[3]] - questionResponseOldMap[keys[3]],
+               questionResponseNewMap[keys[4]] - questionResponseOldMap[keys[4]]].hasOnly([0,1])
+            )
+          ) ||
+          (
+            size == 6 &&
+            (
+              [questionResponseNewMap[keys[0]] - questionResponseOldMap[keys[0]],
+               questionResponseNewMap[keys[1]] - questionResponseOldMap[keys[1]],
+               questionResponseNewMap[keys[2]] - questionResponseOldMap[keys[2]],
+               questionResponseNewMap[keys[3]] - questionResponseOldMap[keys[3]],
+               questionResponseNewMap[keys[4]] - questionResponseOldMap[keys[4]],
+               questionResponseNewMap[keys[5]] - questionResponseOldMap[keys[5]]].hasOnly([0,1])
+            )
+          ) ||
+          (
+            size == 7 &&
+            (
+              [questionResponseNewMap[keys[0]] - questionResponseOldMap[keys[0]],
+               questionResponseNewMap[keys[1]] - questionResponseOldMap[keys[1]],
+               questionResponseNewMap[keys[2]] - questionResponseOldMap[keys[2]],
+               questionResponseNewMap[keys[3]] - questionResponseOldMap[keys[3]],
+               questionResponseNewMap[keys[4]] - questionResponseOldMap[keys[4]],
+               questionResponseNewMap[keys[5]] - questionResponseOldMap[keys[5]],
+               questionResponseNewMap[keys[6]] - questionResponseOldMap[keys[6]]].hasOnly([0,1])
+            )
+          ) ||
+          (
+            size == 8 &&
+            (
+              [questionResponseNewMap[keys[0]] - questionResponseOldMap[keys[0]],
+               questionResponseNewMap[keys[1]] - questionResponseOldMap[keys[1]],
+               questionResponseNewMap[keys[2]] - questionResponseOldMap[keys[2]],
+               questionResponseNewMap[keys[3]] - questionResponseOldMap[keys[3]],
+               questionResponseNewMap[keys[4]] - questionResponseOldMap[keys[4]],
+               questionResponseNewMap[keys[5]] - questionResponseOldMap[keys[5]],
+               questionResponseNewMap[keys[6]] - questionResponseOldMap[keys[6]],
+               questionResponseNewMap[keys[7]] - questionResponseOldMap[keys[7]]].hasOnly([0,1])
+            )
+          ) ||
+          (
+            size == 9 &&
+            (
+              [questionResponseNewMap[keys[0]] - questionResponseOldMap[keys[0]],
+               questionResponseNewMap[keys[1]] - questionResponseOldMap[keys[1]],
+               questionResponseNewMap[keys[2]] - questionResponseOldMap[keys[2]],
+               questionResponseNewMap[keys[3]] - questionResponseOldMap[keys[3]],
+               questionResponseNewMap[keys[4]] - questionResponseOldMap[keys[4]],
+               questionResponseNewMap[keys[5]] - questionResponseOldMap[keys[5]],
+               questionResponseNewMap[keys[6]] - questionResponseOldMap[keys[6]],
+               questionResponseNewMap[keys[7]] - questionResponseOldMap[keys[7]],
+               questionResponseNewMap[keys[8]] - questionResponseOldMap[keys[8]]].hasOnly([0,1])
+            )
+          ) ||
+          (
+            size == 10 &&
+            (
+              [questionResponseNewMap[keys[0]] - questionResponseOldMap[keys[0]],
+               questionResponseNewMap[keys[1]] - questionResponseOldMap[keys[1]],
+               questionResponseNewMap[keys[2]] - questionResponseOldMap[keys[2]],
+               questionResponseNewMap[keys[3]] - questionResponseOldMap[keys[3]],
+               questionResponseNewMap[keys[4]] - questionResponseOldMap[keys[4]],
+               questionResponseNewMap[keys[5]] - questionResponseOldMap[keys[5]],
+               questionResponseNewMap[keys[6]] - questionResponseOldMap[keys[6]],
+               questionResponseNewMap[keys[7]] - questionResponseOldMap[keys[7]],
+               questionResponseNewMap[keys[8]] - questionResponseOldMap[keys[8]],
+               questionResponseNewMap[keys[9]] - questionResponseOldMap[keys[9]]].hasOnly([0,1])
+            )
+          )
+        )
+    }
+
+    function isValidAlreadyVotedUpdation (pollTopic) {
+      let newDoc = getAfter(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PeopleWhoHaveAlreadyVoted).data;
+      let oldDoc = get(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PeopleWhoHaveAlreadyVoted).data;
+      let diffMap = oldDoc.diff(newDoc).affectedKeys();
+      return diffMap.hasOnly(["AlreadyVoted"]) &&
+         !( request.auth.token.email in oldDoc["AlreadyVoted"] ) &&
+        ( newDoc["AlreadyVoted"].size() - oldDoc["AlreadyVoted"].size() ) == 1  &&
+        newDoc.AlreadyVoted.removeAll(oldDoc.AlreadyVoted)[0] == request.auth.token.email;
+    }
+
+    function isValidResponseToQuestion (questionResponseNewMap, questionResponseOldMap, type) {
+    	let diffKeys = questionResponseNewMap.diff(questionResponseOldMap).affectedKeys();
+      let keys = questionResponseNewMap.keys();
+      return 
+        ( type == 0 && 
+          diffKeys.size() == 1 &&
+          isValidSCQUpdation(questionResponseNewMap, questionResponseOldMap, keys)
+        ) ||
+        ( type == 1 &&
+          diffKeys.size() > 0 &&
+          isValidMCQUpdation(questionResponseNewMap, questionResponseOldMap, keys)
+        ) ||
+        ( type == 2 &&
+          questionResponseNewMap["Responses"].size() - 1 == questionResponseOldMap["Responses"].size()
+        );
+    }
+
+    function isValidPollResultsUpdation (pollTopic) {
+      let newDoc = getAfter(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PollResults).data;
+      let oldDoc = get(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PollResults).data;
+      let pollContent = get(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PollContent).data;
+      let size = pollContent.questions.size();
+      return newDoc.keys().toSet() == oldDoc.keys().toSet() &&
+      	pollContent.active == true &&
+        newDoc != oldDoc &&
+         (
+          (
+            size == 1 &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[0].questionStr], oldDoc[pollContent.questions[0].questionStr], pollContent.questions[0].type)
+          ) ||
+          (
+            size == 2 &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[0].questionStr], oldDoc[pollContent.questions[0].questionStr], pollContent.questions[0].type) &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[1].questionStr], oldDoc[pollContent.questions[1].questionStr], pollContent.questions[1].type)
+          ) ||
+          (
+            size == 3 &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[0].questionStr], oldDoc[pollContent.questions[0].questionStr], pollContent.questions[0].type) &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[1].questionStr], oldDoc[pollContent.questions[1].questionStr], pollContent.questions[1].type) && 
+            isValidResponseToQuestion(newDoc[pollContent.questions[2].questionStr], oldDoc[pollContent.questions[2].questionStr], pollContent.questions[2].type)
+          ) ||
+          (
+            size == 4 &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[0].questionStr], oldDoc[pollContent.questions[0].questionStr], pollContent.questions[0].type) &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[1].questionStr], oldDoc[pollContent.questions[1].questionStr], pollContent.questions[1].type) && 
+            isValidResponseToQuestion(newDoc[pollContent.questions[2].questionStr], oldDoc[pollContent.questions[2].questionStr], pollContent.questions[2].type) &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[3].questionStr], oldDoc[pollContent.questions[3].questionStr], pollContent.questions[3].type)
+          ) ||
+          (
+            size == 5 &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[0].questionStr], oldDoc[pollContent.questions[0].questionStr], pollContent.questions[0].type) &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[1].questionStr], oldDoc[pollContent.questions[1].questionStr], pollContent.questions[1].type) && 
+            isValidResponseToQuestion(newDoc[pollContent.questions[2].questionStr], oldDoc[pollContent.questions[2].questionStr], pollContent.questions[2].type) &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[3].questionStr], oldDoc[pollContent.questions[3].questionStr], pollContent.questions[3].type) &&
+            isValidResponseToQuestion(newDoc[pollContent.questions[4].questionStr], oldDoc[pollContent.questions[4].questionStr], pollContent.questions[4].type)
+          )
+         );
+    }
+    
+    function isValidPollStatusChange (pollTopic) {
+    	let pollListFinal = getAfter(/databases/$(database)/documents/ListWiseActivePolls/All).data;
+      let pollListInit = get(/databases/$(database)/documents/ListWiseActivePolls/All).data;
+      let pollContentNew = getAfter(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PollContent).data;
+      let pollContentOld = get(/databases/$(database)/documents/Polls/Redundant/$(pollTopic)/PollContent).data;
+      let diffMap = pollListFinal.diff(pollListInit);
+    	return pollContentNew.diff(pollContentOld).affectedKeys() == ["active"].toSet() &&
+        request.auth.token.email == pollContentNew["createdBy"] &&
+      	diffMap.affectedKeys() == ["ActivePolls", "ClosedPolls"].toSet() &&
+        isIISERite() &&
+        (
+        	(
+          	pollContentNew["active"] == true &&
+            pollListFinal["ActivePolls"].hasAny([pollTopic]) &&
+            !pollListInit["ActivePolls"].hasAny([pollTopic]) &&
+            !pollListFinal["ClosedPolls"].hasAny([pollTopic]) &&
+            pollListInit["ClosedPolls"].hasAny([pollTopic])
+          ) ||
+          (
+          	pollContentNew["active"] == false &&
+            !pollListFinal["ActivePolls"].hasAny([pollTopic]) &&
+            pollListInit["ActivePolls"].hasAny([pollTopic]) &&
+            pollListFinal["ClosedPolls"].hasAny([pollTopic]) &&
+            !pollListInit["ClosedPolls"].hasAny([pollTopic])
+          )
+        )
+    }
+
+    function isValidPollListModification (listName) {
+      let docPath = /databases/$(database)/documents/ListWiseActivePolls/$(listName);
+      let oldDoc = get(docPath).data;
+      let newDoc = getAfter(docPath).data;
+      let diffKeys = oldDoc.diff(newDoc).affectedKeys();
+      let activePollsListNew = newDoc["ActivePolls"];
+      let closedPollsListNew = newDoc["ClosedPolls"];
+      let activePollsListOld = oldDoc["ActivePolls"];
+      let closedPollsListOld = oldDoc["ClosedPolls"];
+      return isIISERite() &&
+        (
+        	diffKeys.hasOnly(["ActivePolls"]) &&
+          diffKeys.hasAll(["ActivePolls"]) &&
+          ( newDoc["ActivePolls"].size() - oldDoc["ActivePolls"].size() == 1 ) &&
+          existsAfter(/databases/$(database)/documents/Polls/Redundant/$(activePollsListNew[activePollsListNew.size() - 1])/PollContent)
+        ) ||
+        (
+        	closedPollsListNew.removeAll(closedPollsListOld).size() == 1 &&
+        	isValidPollStatusChange(closedPollsListNew.removeAll(closedPollsListOld)[0])
+        ) ||
+        (
+        	activePollsListNew.removeAll(activePollsListOld).size() == 1 &&
+          isValidPollStatusChange(activePollsListNew.removeAll(activePollsListOld)[0])
+        )
+    }
+
+    match /{documents=**} {
+      allow read, write: if false;
+    }
+
+    match /Polls/Redundant/{pollTopic} {
+
+      match /PollContent {
+        allow get: if isIISERite();
+        allow create: if isIISERite() &&
+          isValidPoll() && isValidPollListModification("All");
+        allow update: if isValidPollStatusChange(pollTopic);
+        allow delete: if false;
+      }
+
+      match /PollResults {
+        allow get: if isIISERite();
+        allow create: if isIISERite() &&
+          isValidPollResultsDoc(pollTopic) &&
+          pollContentCreated(pollTopic);
+        allow update: if isIISERite() &&
+          isValidPollResultsUpdation(pollTopic) &&
+          isValidAlreadyVotedUpdation(pollTopic);
+        allow delete: if false;
+      }
+
+      match /PeopleWhoHaveAlreadyVoted {
+        allow get: if isIISERite();
+        allow create: if isIISERite() &&
+          isValidAlreadyVotedDoc(pollTopic) &&
+          pollContentCreated(pollTopic);
+        allow update: if isIISERite() &&
+          isValidPollResultsUpdation(pollTopic) &&
+          isValidAlreadyVotedUpdation(pollTopic);
+        allow delete: if false;
+      }
+
+    }
+
+    match /ListWiseActivePolls/All {
+      allow get: if isIISERite();
+      allow create: if isIISERite();
+      allow update: if isIISERite() &&
+        isValidPollListModification("All")
+      allow delete: if false;
+    }
+    
+  }
+
+}
